@@ -20,17 +20,31 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.coroutineScope
+import androidx.navigation.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.example.busschedule.adapter.BusStopAdapter
 import com.example.busschedule.databinding.FullScheduleFragmentBinding
+import com.example.busschedule.viewmodels.BusScheduleViewModel
+import com.example.busschedule.viewmodels.BusScheduleViewModelFactory
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
-class FullScheduleFragment: Fragment() {
+class FullScheduleFragment : Fragment() {
 
     private var _binding: FullScheduleFragmentBinding? = null
-
     private val binding get() = _binding!!
 
     private lateinit var recyclerView: RecyclerView
+
+    private val viewModel: BusScheduleViewModel by activityViewModels {
+        BusScheduleViewModelFactory(
+            (activity?.application as BusScheduleApplication).database.scheduleDao()
+        )
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -38,14 +52,30 @@ class FullScheduleFragment: Fragment() {
         savedInstanceState: Bundle?
     ): View? {
         _binding = FullScheduleFragmentBinding.inflate(inflater, container, false)
-        val view = binding.root
-        return view
+        return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
         recyclerView = binding.recyclerView
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
+
+        // Passes in a function that would execute when rows on this screen are tapped
+        val busStopAdapter = BusStopAdapter {
+            val action =
+                FullScheduleFragmentDirections.actionFullScheduleFragmentToStopScheduleFragment(
+                    stopName = it.stopName
+                )
+            view.findNavController().navigate(action)
+        }
+        recyclerView.adapter = busStopAdapter
+
+        lifecycle.coroutineScope.launch {
+            viewModel.fullSchedule().collect() {
+                busStopAdapter.submitList(it)
+            }
+        }
     }
 
     override fun onDestroyView() {
